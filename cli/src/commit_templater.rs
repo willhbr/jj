@@ -19,7 +19,7 @@ use std::io;
 use std::rc::Rc;
 
 use itertools::Itertools as _;
-use jj_lib::backend::{BackendResult, ChangeId, CommitId};
+use jj_lib::backend::{BackendResult, ChangeId, CommitId, Timestamp};
 use jj_lib::commit::Commit;
 use jj_lib::extensions_map::ExtensionsMap;
 use jj_lib::fileset::{self, FilesetExpression};
@@ -326,6 +326,13 @@ impl<'repo> IntoTemplateProperty<'repo> for CommitTemplatePropertyKind<'repo> {
     fn try_into_integer(self) -> Option<Box<dyn TemplateProperty<Output = i64> + 'repo>> {
         match self {
             CommitTemplatePropertyKind::Core(property) => property.try_into_integer(),
+            _ => None,
+        }
+    }
+
+    fn try_into_timestamp(self) -> Option<Box<dyn TemplateProperty<Output = Timestamp> + 'repo>> {
+        match self {
+            CommitTemplatePropertyKind::Core(property) => property.try_into_timestamp(),
             _ => None,
         }
     }

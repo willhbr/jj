@@ -20,6 +20,7 @@ use crate::template_builder::{
 };
 use crate::template_parser::{self, FunctionCallNode, TemplateParseResult};
 use crate::templater::{Template, TemplateProperty};
+use jj_lib::backend::Timestamp;
 
 /// General-purpose template language for basic value types.
 ///
@@ -142,6 +143,12 @@ impl<'a, C: 'a> IntoTemplateProperty<'a> for GenericTemplatePropertyKind<'a, C> 
     fn try_into_integer(self) -> Option<Box<dyn TemplateProperty<Output = i64> + 'a>> {
         match self {
             GenericTemplatePropertyKind::Core(property) => property.try_into_integer(),
+            GenericTemplatePropertyKind::Self_(_) => None,
+        }
+    }
+    fn try_into_timestamp(self) -> Option<Box<dyn TemplateProperty<Output = Timestamp> + 'a>> {
+        match self {
+            GenericTemplatePropertyKind::Core(property) => property.try_into_timestamp(),
             GenericTemplatePropertyKind::Self_(_) => None,
         }
     }

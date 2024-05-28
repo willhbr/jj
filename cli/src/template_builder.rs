@@ -130,6 +130,7 @@ pub trait IntoTemplateProperty<'a> {
 
     fn try_into_boolean(self) -> Option<Box<dyn TemplateProperty<Output = bool> + 'a>>;
     fn try_into_integer(self) -> Option<Box<dyn TemplateProperty<Output = i64> + 'a>>;
+    fn try_into_timestamp(self) -> Option<Box<dyn TemplateProperty<Output = Timestamp> + 'a>>;
 
     fn try_into_plain_text(self) -> Option<Box<dyn TemplateProperty<Output = String> + 'a>>;
     fn try_into_template(self) -> Option<Box<dyn Template + 'a>>;
@@ -208,6 +209,16 @@ impl<'a> IntoTemplateProperty<'a> for CoreTemplatePropertyKind<'a> {
             CoreTemplatePropertyKind::IntegerOpt(property) => {
                 Some(Box::new(property.try_unwrap("Integer")))
             }
+            _ => None,
+        }
+    }
+
+    fn try_into_timestamp(self) -> Option<Box<dyn TemplateProperty<Output = Timestamp> + 'a>> {
+        match self {
+            CoreTemplatePropertyKind::Timestamp(property) => Some(property),
+            // CoreTemplatePropertyKind::IntegerOpt(property) => {
+            //     Some(Box::new(property.try_unwrap("Integer")))
+            // }
             _ => None,
         }
     }
@@ -295,7 +306,7 @@ impl<'a, L: TemplateLanguage<'a> + ?Sized> CoreTemplateBuildFnTable<'a, L> {
             functions: builtin_functions(),
             string_methods: builtin_string_methods(),
             boolean_methods: HashMap::new(),
-            integer_methods: HashMap::new(),
+            integer_methods: builtin_integer_methods(),
             signature_methods: builtin_signature_methods(),
             size_hint_methods: builtin_size_hint_methods(),
             timestamp_methods: builtin_timestamp_methods(),
@@ -450,6 +461,10 @@ impl<'a, P: IntoTemplateProperty<'a>> Expression<P> {
 
     pub fn try_into_integer(self) -> Option<Box<dyn TemplateProperty<Output = i64> + 'a>> {
         self.property.try_into_integer()
+    }
+
+    pub fn try_into_timestamp(self) -> Option<Box<dyn TemplateProperty<Output = Timestamp> + 'a>> {
+        self.property.try_into_timestamp()
     }
 
     pub fn try_into_plain_text(self) -> Option<Box<dyn TemplateProperty<Output = String> + 'a>> {
@@ -759,6 +774,16 @@ fn builtin_timestamp_methods<'a, L: TemplateLanguage<'a> + ?Sized>(
     // Not using maplit::hashmap!{} or custom declarative macro here because
     // code completion inside macro is quite restricted.
     let mut map = TemplateBuildMethodFnMap::<L, Timestamp>::new();
+    map.insert(
+        "is_older_than",
+        |language, build_ctx, self_property, function| {
+            let [node] = function.expect_exact_arguments()?;
+            let age_property = expect_timestamp_expression(language, build_ctx, node)?;
+            let is_older_than =
+                (self_property, age_property).map(|(timestamp, cutoff)| timestamp < cutoff);
+            Ok(L::wrap_boolean(is_older_than))
+        },
+    );
     map.insert("ago", |_language, _build_ctx, self_property, function| {
         function.expect_no_arguments()?;
         let now = Timestamp::now();
@@ -830,6 +855,33 @@ fn builtin_timestamp_range_methods<'a, L: TemplateLanguage<'a> + ?Sized>(
             function.expect_no_arguments()?;
             let out_property = self_property.and_then(|time_range| Ok(time_range.duration()?));
             Ok(L::wrap_string(out_property))
+        },
+    );
+    map
+}
+
+fn builtin_integer_methods<'a, L: TemplateLanguage<'a> + ?Sized>(
+) -> TemplateBuildMethodFnMap<'a, L, i64> {
+    let mut map = TemplateBuildMethodFnMap::<L, i64>::new();
+
+    map.insert(
+        "hours_ago",
+        |_language, _build_ctx, self_property, _function| {
+            let ago = self_property.map(|ago| {
+                Timestamp::from_datetime(
+                    chrono::offset::Local::now() - chrono::Duration::hours(ago),
+                )
+            });
+            Ok(L::wrap_timestamp(ago))
+        },
+    );
+    map.insert(
+        "days_ago",
+        |_language, _build_ctx, self_property, _function| {
+            let ago = self_property.map(|ago| {
+                Timestamp::from_datetime(chrono::offset::Local::now() - chrono::Duration::days(ago))
+            });
+            Ok(L::wrap_timestamp(ago))
         },
     );
     map
@@ -1174,6 +1226,16 @@ pub fn expect_integer_expression<'a, L: TemplateLanguage<'a> + ?Sized>(
 ) -> TemplateParseResult<Box<dyn TemplateProperty<Output = i64> + 'a>> {
     expect_expression_of_type(language, build_ctx, node, "Integer", |expression| {
         expression.try_into_integer()
+    })
+}
+
+pub fn expect_timestamp_expression<'a, L: TemplateLanguage<'a> + ?Sized>(
+    language: &L,
+    build_ctx: &BuildContext<L::Property>,
+    node: &ExpressionNode,
+) -> TemplateParseResult<Box<dyn TemplateProperty<Output = Timestamp> + 'a>> {
+    expect_expression_of_type(language, build_ctx, node, "Timestamp", |expression| {
+        expression.try_into_timestamp()
     })
 }
 

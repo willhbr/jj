@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::io;
 
 use itertools::Itertools as _;
+use jj_lib::backend::Timestamp;
 use jj_lib::extensions_map::ExtensionsMap;
 use jj_lib::object_id::ObjectId;
 use jj_lib::op_store::OperationId;
@@ -152,10 +153,16 @@ impl IntoTemplateProperty<'static> for OperationTemplatePropertyKind {
             OperationTemplatePropertyKind::OperationId(_) => None,
         }
     }
-
     fn try_into_integer(self) -> Option<Box<dyn TemplateProperty<Output = i64>>> {
         match self {
             OperationTemplatePropertyKind::Core(property) => property.try_into_integer(),
+            _ => None,
+        }
+    }
+
+    fn try_into_timestamp(self) -> Option<Box<dyn TemplateProperty<Output = Timestamp>>> {
+        match self {
+            OperationTemplatePropertyKind::Core(property) => property.try_into_timestamp(),
             _ => None,
         }
     }
